@@ -7,7 +7,7 @@ RUN export TZ=Europe/Rome && \
 	apt-get update && \
 	ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
 	echo $TZ > /etc/timezone && \
-	apt-get -y install --no-install-recommends fonts-takao netcat-traditional wget && \
+	apt-get -y install --no-install-recommends fonts-takao netcat-traditional wget curl && \
 	apt-get -y install ffmpeg unzip && \
 	echo "ko_KR.UTF-8 UTF-8" >> /etc/locale.gen && \ 
 	echo "ja_JP.UTF-8 UTF-8" >> /etc/locale.gen && \
@@ -54,10 +54,16 @@ RUN set -eux; \
 	echo "Downloading ${SEVENZIP_FILENAME} from ${SEVENZIP_URL}"; \
 	wget -O /tmp/${SEVENZIP_FILENAME} "${SEVENZIP_URL}"; \
 	# unzip will create multiple items; extract to /tmp
-	unzip -q /tmp/${SEVENZIP_FILENAME} -d /tmp/ || (echo "unzip failed" && ls -la /tmp && false); \
-	rm -f /tmp/${SEVENZIP_FILENAME}; \
-	# Keep only /tmp/lib and /tmp/JDownloader.jar (remove everything else in /tmp)
-	find /tmp -maxdepth 1 -mindepth 1 ! -name lib ! -name JDownloader.jar -exec rm -rf {} + || true
+		unzip -q /tmp/${SEVENZIP_FILENAME} -d /tmp/ || (echo "unzip failed" && ls -la /tmp && false); \
+		rm -f /tmp/${SEVENZIP_FILENAME}; \
+		# Create a lib.tar.gz in /tmp to preserve compatibility with startup scripts
+		if [ -d /tmp/lib ]; then \
+			tar -C /tmp -czf /tmp/lib.tar.gz lib; \
+		fi; \
+		# Keep only /tmp/lib, /tmp/lib.tar.gz and /tmp/JDownloader.jar (remove everything else in /tmp)
+		find /tmp -maxdepth 1 -mindepth 1 ! -name lib ! -name lib.tar.gz ! -name JDownloader.jar -exec rm -rf {} + || true
+
+	# Runtime JDK is downloaded at container startup (Temurin default) by `start-server.sh`.
 COPY /conf/ /etc/.fluxbox/
 RUN chmod -R 770 /opt/scripts/ && \
 	chown -R ${UID}:${GID} /mnt && \

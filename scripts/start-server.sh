@@ -13,16 +13,49 @@ fi
 echo "---Checking if Runtime is installed---"
 if [ -z "$(find ${DATA_DIR}/runtime -name jre*)" ]; then
     if [ "${RUNTIME_NAME}" == "basicjre" ]; then
-    	echo "---Downloading and installing Runtime---"
-		cd ${DATA_DIR}/runtime
-		if wget -q -nc --show-progress --progress=bar:force:noscroll https://github.com/Pa7rickStar/docker-jdownloader2/raw/master/jre/jre-8u461-linux-x64.tar.gz ; then
-			echo "---Successfully downloaded Runtime!---"
-		else
-			echo "---Something went wrong, can't download Runtime, putting server in sleep mode---"
-			sleep infinity
-		fi
-        tar --directory ${DATA_DIR}/runtime -xvzf ${DATA_DIR}/runtime/basicjre.tar.gz
-        rm -R ${DATA_DIR}/runtime/basicjre.tar.gz
+    	echo "---Downloading and installing Runtime (basicjre)---"
+    	# Default to Temurin (Adoptium) OpenJDK 21 binary which is redistributable and CI-friendly.
+    	JDK_URL="${JDK_URL:-https://github.com/adoptium/temurin21-binaries/releases/latest/download/OpenJDK21U-jdk_x64_linux_hotspot.tar.gz}"
+    	# Optional: set JDK_SHA256 env var to validate the downloaded archive
+    	JDK_SHA256="${JDK_SHA256:-}"
+
+    	cd "${DATA_DIR}/runtime"
+
+    	echo "Downloading JDK from ${JDK_URL} to ${DATA_DIR}/runtime/jdk.tar.gz"
+
+    	# Download using curl if available (follow redirects), otherwise wget
+    	if command -v curl >/dev/null 2>&1; then
+    		curl -fL --retry 3 -o jdk.tar.gz "${JDK_URL}" || {
+    			echo "---JDK download failed (curl)---"; sleep infinity; }
+    	else
+    		wget -q -O jdk.tar.gz "${JDK_URL}" || {
+    			echo "---JDK download failed (wget)---"; sleep infinity; }
+    	fi
+
+    	# If a checksum is provided, verify it
+    	if [ -n "${JDK_SHA256}" ]; then
+    		if command -v sha256sum >/dev/null 2>&1; then
+    			echo "${JDK_SHA256}  jdk.tar.gz" > /tmp/jdk.sha256
+    			if ! sha256sum -c /tmp/jdk.sha256; then
+    				echo "---JDK checksum verification failed---"; ls -l jdk.tar.gz; sleep infinity;
+    			fi
+    		else
+    			echo "---sha256sum not available; skipping checksum verification---"
+    		fi
+    	fi
+
+    	# Sanity check the archive is a valid tar.gz and extract
+    	if [ -f jdk.tar.gz ]; then
+    		if tar -tzf jdk.tar.gz >/dev/null 2>&1; then
+    			echo "---JDK archive valid; extracting---"
+    			tar -xzf jdk.tar.gz -C "${DATA_DIR}/runtime"
+    			rm -f jdk.tar.gz
+    		else
+    			echo "---Downloaded JDK is not a valid tar.gz; aborting---"; ls -l jdk.tar.gz; sleep infinity
+    		fi
+    	else
+    		echo "---No JDK archive downloaded; runtime will need to be provided manually---"; sleep infinity
+    	fi
     else
     	if [ ! -d ${DATA_DIR}/runtime/${RUNTIME_NAME} ]; then
         	echo "---------------------------------------------------------------------------------------------"
@@ -51,7 +84,14 @@ else
 fi
 
 echo "---Preparing Server---"
-export RUNTIME_NAME="$(ls -d ${DATA_DIR}/runtime/* | cut -d '/' -f4)"
+# Determine runtime directory name (prefer extracted jre* directory)
+rt_dir=$(find ${DATA_DIR}/runtime -maxdepth 1 -type d -name "jre*" | head -n1 || true)
+if [ -n "$rt_dir" ]; then
+	export RUNTIME_NAME="$(basename "$rt_dir")"
+else
+	# fallback: pick first directory under runtime
+	export RUNTIME_NAME="$(ls -d ${DATA_DIR}/runtime/* | head -n1 | xargs -n1 basename 2>/dev/null || echo "")"
+fi
 
 echo "---Checking libraries---"
 if [ ! -d ${DATA_DIR}/libs ]; then
