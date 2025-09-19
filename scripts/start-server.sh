@@ -15,7 +15,7 @@ if [ -z "$(find ${DATA_DIR}/runtime -name jre*)" ]; then
     if [ "${RUNTIME_NAME}" == "basicjre" ]; then
     	echo "---Downloading and installing Runtime---"
 		cd ${DATA_DIR}/runtime
-		if wget -q -nc --show-progress --progress=bar:force:noscroll https://github.com/ich777/runtimes/raw/master/jre/basicjre.tar.gz ; then
+		if wget -q -nc --show-progress --progress=bar:force:noscroll https://github.com/Pa7rickStar/docker-jdownloader2/raw/master/jre/jre-8u461-linux-x64.tar.gz ; then
 			echo "---Successfully downloaded Runtime!---"
 		else
 			echo "---Something went wrong, can't download Runtime, putting server in sleep mode---"
