@@ -1,7 +1,7 @@
 FROM ich777/novnc-baseimage
 
 LABEL org.opencontainers.image.authors="admin@minenet.at"
-LABEL org.opencontainers.image.source="https://github.com/ich777/docker-jdownloader2"
+LABEL org.opencontainers.image.source="https://github.com/Pa7rickStar/docker-jdownloader2"
 
 RUN export TZ=Europe/Rome && \
 	apt-get update && \
