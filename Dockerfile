@@ -1,6 +1,8 @@
 FROM ich777/novnc-baseimage
 
 LABEL org.opencontainers.image.authors="admin@minenet.at"
+# LABEL org.opencontainers.image.source="https://github.com/ich777/docker-jdownloader2"
+# Temporary for testing:
 LABEL org.opencontainers.image.source="https://github.com/Pa7rickStar/docker-jdownloader2"
 
 RUN export TZ=Europe/Rome && \
@@ -45,7 +47,6 @@ RUN set -eux; \
 	wget -O /tmp/JDownloader.jar "https://installer.jdownloader.org/JDownloader.jar"; \
 	ls -l /tmp/JDownloader.jar
 
-# Download 7-Zip-JBinding (used previously via JD/lib.tar.gz)
 # You can override SEVENZIP_VERSION at build time with --build-arg
 ARG SEVENZIP_VERSION=16.02-2.01
 ARG SEVENZIP_FILENAME=sevenzipjbinding-${SEVENZIP_VERSION}-Linux-amd64.zip
