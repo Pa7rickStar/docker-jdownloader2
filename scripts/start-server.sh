@@ -2,6 +2,14 @@
 export DISPLAY=:99
 export XAUTHORITY=${DATA_DIR}/.Xauthority
 
+# check if ENV DEBUG_TIME > 0; if so sleep for that many seconds
+if [ -z "${DEBUG_TIME:-}" ] || ! [[ "${DEBUG_TIME}" =~ ^[0-9]+$ ]] || [ "${DEBUG_TIME}" -le 0 ]; then
+	echo "---DEBUG: Not sleeping, DEBUG_TIME not set or invalid---"
+else
+	echo "---DEBUG: Sleeping for ${DEBUG_TIME} seconds---"
+	sleep "${DEBUG_TIME}"
+fi
+
 echo "---Checking for 'runtime' folder---"
 if [ ! -d ${DATA_DIR}/runtime ]; then
 	echo "---'runtime' folder not found, creating...---"
@@ -117,6 +125,11 @@ else
   echo "---Downloading ${ASSET_BASE}...---"
   curl -fsS --retry 3 "${CURL_AUTH[@]}"  -o "${ASSET_FILE}" "${ASSET_URL}" \
     || { echo "---ERROR: download failed---"; exit 1; }
+  if file "${ASSET_FILE}" | grep -qi 'HTML'; then
+    echo "---ERROR: Downloaded file looks like HTML (probably an error page)---"
+	head -n20 "${ASSET_FILE}"
+    exit 1
+  fi
   # Exact "<asset>.sha256.txt"; fallback: any sha256 listing (match basename)
   CHECK_URL="$(jq -r --arg f "${ASSET_BASE}.sha256.txt" '.assets[] | select(.name==$f) | .browser_download_url' /tmp/jre_release.json | head -n1)"
   if [ -z "${CHECK_URL}" ] || [ "${CHECK_URL}" = "null" ]; then
