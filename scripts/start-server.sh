@@ -22,7 +22,7 @@ fi
 
 # Ensure Temurin runtime (Python prints: RUNTIME_NAME='...' and INSTALLED_JRE='...')
 echo "---Ensuring Temurin runtime---"
-if ! eval "$(/usr/bin/env python3 get-jre.py)"; then
+if ! eval "$(/usr/bin/env python3 /opt/scripts/get-jre.py)"; then
   echo "---ERROR: runtime fetch failed---"
   exit 1
 fi
