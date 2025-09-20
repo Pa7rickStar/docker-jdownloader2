@@ -35,11 +35,14 @@ case "$req" in
     USE_LATEST=1
     ;;
   jdk-*)
-    JDK_MAJOR="${req#jdk-}"; JDK_MAJOR="${JDK_MAJOR%%.*}"
-    TAG="$req"; USE_LATEST=0
+    ver="${req#jdk-}"
+    JDK_MAJOR="${ver%%[+.-]*}"   # take only number before + or . or -
+    TAG="$req"
+    USE_LATEST=0
     ;;
   [0-9]*)
-    JDK_MAJOR="${req%%.*}"
+    ver="$req"
+    JDK_MAJOR="${ver%%[+.-]*}"
     if [[ "$req" =~ ^[0-9]+$ ]]; then
       USE_LATEST=1
     else
