@@ -11,6 +11,12 @@ else
 fi
 
 echo "---Checking if Runtime is installed---"
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+  echo "---Using GitHub token for authenticated API requests---"
+  CURL_AUTH=(-H "Authorization: token ${GITHUB_TOKEN}")
+else
+  CURL_AUTH=()
+fi
 INSTALLED_JRE="" RUNTIME_NAME=""
 rel="$(find "${DATA_DIR}/runtime" -type f -name release -print -quit 2>/dev/null || true)"
 if [ -n "$rel" ]; then
@@ -65,14 +71,14 @@ else
   rm -f /tmp/jre_release.json
   if [ "$USE_LATEST" = 1 ]; then
     API_URL="https://api.github.com/repos/${REPO}/releases/latest"
-    curl -fsS --retry 3 -o /tmp/jre_release.json "${API_URL}" \
+	curl -fsS --retry 3 "${CURL_AUTH[@]}" -o /tmp/jre_release.json "${API_URL}" \
       || { echo "---ERROR: cannot fetch latest from ${REPO}---"; exit 1; }
   else
     API_URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
-    if ! curl -fsS --retry 3 -o /tmp/jre_release.json "${API_URL}"; then
+    if ! curl -fsS --retry 3 "${CURL_AUTH[@]}" -o /tmp/jre_release.json "${API_URL}"; then
       echo "---Requested tag ${TAG} not found in ${REPO}, falling back to latest---"
       API_URL="https://api.github.com/repos/${REPO}/releases/latest"
-      curl -fsS --retry 3 -o /tmp/jre_release.json "${API_URL}" \
+      curl -fsS --retry 3 "${CURL_AUTH[@]}" -o /tmp/jre_release.json "${API_URL}" \
         || { echo "---ERROR: cannot fetch latest from ${REPO}---"; exit 1; }
   fi
   fi
@@ -109,7 +115,7 @@ else
   mkdir -p /tmp
   ASSET_FILE="/tmp/${ASSET_BASE}"
   echo "---Downloading ${ASSET_BASE}...---"
-  curl -fsSL --retry 3 -o "${ASSET_FILE}" "${ASSET_URL}" \
+  curl -fsS --retry 3 "${CURL_AUTH[@]}"  -o "${ASSET_FILE}" "${ASSET_URL}" \
     || { echo "---ERROR: download failed---"; exit 1; }
   # Exact "<asset>.sha256.txt"; fallback: any sha256 listing (match basename)
   CHECK_URL="$(jq -r --arg f "${ASSET_BASE}.sha256.txt" '.assets[] | select(.name==$f) | .browser_download_url' /tmp/jre_release.json | head -n1)"
@@ -118,7 +124,7 @@ else
   fi
   if [ -n "${CHECK_URL}" ] && [ "${CHECK_URL}" != "null" ]; then
     echo "---Found checksum asset, downloading...---"
-    curl -fsSL --retry 3 -o /tmp/jre_checksums.txt "${CHECK_URL}" || { echo "---WARNING: failed to download checksum asset---"; }
+    curl -fsS --retry 3 "${CURL_AUTH[@]}"  -o /tmp/jre_checksums.txt "${CHECK_URL}" || { echo "---WARNING: failed to download checksum asset---"; }
     # Extract checksum line that refers to our ASSET_BASE (handles lines like "HEX  OpenJDK...tar.gz" or "HEX *OpenJDK...tar.gz" or with paths)
     if [ -s /tmp/jre_checksums.txt ]; then
       EXPECTED_SHA="$(awk -v tgt="${ASSET_BASE}" '
