@@ -94,10 +94,10 @@ if [ -f ${DATA_DIR}/.vnc/passwd ]; then
 fi
 
 echo "---Resolution check---"
-if [ -z "${CUSTOM_RES_W} ]; then
+if [ -z "${CUSTOM_RES_W}" ]; then
 	CUSTOM_RES_W=1024
 fi
-if [ -z "${CUSTOM_RES_H} ]; then
+if [ -z "${CUSTOM_RES_H}" ]; then
 	CUSTOM_RES_H=768
 fi
 
