@@ -26,6 +26,7 @@ ENV CUSTOM_DEPTH=16
 ENV NOVNC_PORT=8080
 ENV RFB_PORT=5900
 ENV TURBOVNC_PARAMS="-securitytypes none"
+ENV RUNTIME_NAME="basicjre"
 ENV UMASK=000
 ENV CONNECTED_CONTAINERS=""
 ENV CONNECTED_CONTAINERS_TIMEOUT=60
@@ -33,14 +34,15 @@ ENV UID=99
 ENV GID=100
 ENV DATA_PERM=770
 ENV USER="jdownloader"
-ARG JRE_VERSION="jdk-24.0.2+12"
-ARG JD_SHA256=""
-ARG FORCE_SHA_CHECK=false
-ARG GITHUB_TOKEN=""
-ENV JRE_VERSION=${JRE_VERSION}
-ENV JD_SHA256=${JD_SHA256}
-ENV FORCE_SHA_CHECK=${FORCE_SHA_CHECK}
-ENV DEBUG_TIME=0
+ENV SKIP_SHA_CHECKS=false
+ENV JAVA_RUNTIME_VERSION="jdk-24.0.2+12"
+ENV JD_DOWNLOAD_URL="https://installer.jdownloader.org/JDownloader.jar"
+ENV JD_SHA_PAGE_URL="https://support.jdownloader.org/de/knowledgebase/article/install-jdownloader-on-nas-and-embedded-devices"
+ENV JD_SHA256=""
+ENV SEVENZIP_BEST_URL="https://sourceforge.net/projects/sevenzipjbind/best_release.json"
+ENV SEVENZIP_FALLBACK_URL="https://sourceforge.net/projects/sevenzipjbind/files/7-Zip-JBinding/16.02-2.01/sevenzipjbinding-16.02-2.01-Linux-amd64.zip/download?use_mirror=master"
+ENV SEVENZIP_MD5=""
+ENV GITHUB_TOKEN=""
 
 RUN mkdir $DATA_DIR && \
 	useradd -d $DATA_DIR -s /bin/bash $USER && \
@@ -50,103 +52,136 @@ RUN mkdir $DATA_DIR && \
 ADD /scripts/ /opt/scripts/
 COPY /icons/* /usr/share/novnc/app/images/icons/
 RUN set -eux; \
-	echo "Preparing JDownloader installer download and optional SHA256 verification"; \
-	# If JD_SHA256 is empty, try to fetch it from the official support article
-	if [ -z "$JD_SHA256" ]; then \
-		echo "JD_SHA256 is empty; attempting to fetch from support page"; \
-		page_url="https://support.jdownloader.org/de/knowledgebase/article/install-jdownloader-on-nas-and-embedded-devices"; \
-		tmp_html="/tmp/jd_support.html"; \
-		if curl -fsSL "$page_url" -o "$tmp_html"; then \
-			extract_sha() { \
-				_file="$1"; \
-				line="$(grep -i 'sha256' "$_file" | head -n1 || true)"; \
-				if [ -n "$line" ]; then \
-					sha="$(echo "$line" | sed -nE 's/.*([A-Fa-f0-9]{64}).*/\1/p' | tr '[:upper:]' '[:lower:]' | head -n1 || true)"; \
-					[ -n "$sha" ] && { printf '%s' "$sha"; return 0; } ; \
+	skip_flag="$(printf '%s' "${SKIP_SHA_CHECKS}" | tr '[:upper:]' '[:lower:]')"; \
+	jd_expected="${JD_SHA256}"; \
+	jd_support_tmp="/tmp/jd_support.html"; \
+	jd_jar="/tmp/JDownloader.jar"; \
+	if [ "$skip_flag" != "true" ]; then \
+		if [ -z "$jd_expected" ]; then \
+			echo "JD_SHA256 empty; attempting to scrape ${JD_SHA_PAGE_URL}"; \
+			if curl -fsSL "${JD_SHA_PAGE_URL}" -o "$jd_support_tmp"; then \
+				extract_sha() { \
+					_file="$1"; \
+					line="$(grep -i 'sha256' "$_file" | head -n1 || true)"; \
+					if [ -n "$line" ]; then \
+						sha="$(echo "$line" | sed -nE 's/.*([A-Fa-f0-9]{64}).*/\1/p' | tr '[:upper:]' '[:lower:]' | head -n1 || true)"; \
+						[ -n "$sha" ] && { printf '%s' "$sha"; return 0; }; \
+					fi; \
+					hex="$(grep -ioE '[a-f0-9]{64}' "$_file" | head -n1 || true)"; \
+					[ -n "$hex" ] && { printf '%s' "$(echo "$hex" | tr '[:upper:]' '[:lower:]')"; return 0; }; \
+					return 1; \
+				}; \
+				jd_scraped="$(extract_sha "$jd_support_tmp" || true)"; \
+				if [ -n "$jd_scraped" ]; then \
+					jd_expected="$jd_scraped"; \
+					echo "Scraped JD_SHA256=$jd_expected"; \
+				else \
+					echo "Failed to scrape JD checksum"; \
 				fi; \
-				sha="$(grep -ioE '[a-f0-9]{64}' "$_file" | head -n1 || true)"; \
-				[ -n "$sha" ] && { printf '%s' "$(echo \"$sha\" | tr '[:upper:]' '[:lower:]')"; return 0; } ; \
-				return 1; \
-			}; \
-			jd_hash="$(extract_sha "$tmp_html" || true)"; \
-			if [ -n "$jd_hash" ]; then \
-				JD_SHA256="$jd_hash"; \
-				echo "Extracted JD_SHA256=$JD_SHA256"; \
 			else \
-				echo "No SHA256 hash found on support page"; \
+				echo "Could not download JD SHA page"; \
 			fi; \
 		else \
-			echo "Failed to download support page; continuing without JD_SHA256"; \
+			echo "JD_SHA256 provided via environment"; \
+		fi; \
+		if [ -z "$jd_expected" ]; then \
+			echo "Checksum enforcement enabled but no JD_SHA256 available"; \
+			exit 1; \
 		fi; \
 	else \
-		echo "JD_SHA256 provided at build time: $JD_SHA256"; \
+		echo "SKIP_SHA_CHECKS=true -> not verifying JDownloader.jar"; \
 	fi; \
-	echo "Downloading JDownloader.jar"; \
-	wget -O /tmp/JDownloader.jar "https://installer.jdownloader.org/JDownloader.jar"; \
-	ls -l /tmp/JDownloader.jar; \
-	# Verify downloaded file if JD_SHA256 is not empty
-	if [ -n "$JD_SHA256" ]; then \
-		echo "Verifying JDownloader.jar SHA256"; \
-		calc="$(sha256sum /tmp/JDownloader.jar | awk '{print $1}')" || calc=""; \
-		if [ "$(echo "$calc" | tr '[:upper:]' '[:lower:]')" != "$(echo "$JD_SHA256" | tr '[:upper:]' '[:lower:]')" ]; then \
-			echo "SHA256 mismatch: expected $JD_SHA256 got $calc"; \
-			if [ "$FORCE_SHA_CHECK" = "true" ] || [ "$FORCE_SHA_CHECK" = "1" ]; then \
-				echo "FORCE_SHA_CHECK is set -> failing build"; \
-				exit 1; \
-			else \
-				echo "Warning: checksum mismatch but FORCE_SHA_CHECK not set; continuing"; \
-			fi; \
-		else \
-			echo "Checksum matches"; \
+	echo "Downloading JDownloader.jar from ${JD_DOWNLOAD_URL}"; \
+	wget -O "$jd_jar" "${JD_DOWNLOAD_URL}"; \
+	ls -l "$jd_jar"; \
+	if [ "$skip_flag" != "true" ]; then \
+		calc="$(sha256sum "$jd_jar" | awk '{print $1}' || true)"; \
+		if [ -z "$calc" ]; then \
+			echo "Failed to compute SHA256 for JDownloader.jar"; \
+			exit 1; \
 		fi; \
-	else \
-		echo "No JD_SHA256 available to verify against"; \
+		normal_calc="$(printf '%s' "$calc" | tr '[:upper:]' '[:lower:]')"; \
+		normal_expected="$(printf '%s' "$jd_expected" | tr '[:upper:]' '[:lower:]')"; \
+		if [ "$normal_calc" != "$normal_expected" ]; then \
+			echo "SHA256 mismatch for JDownloader.jar (expected $normal_expected got $normal_calc)"; \
+			exit 1; \
+		fi; \
+		echo "JDownloader.jar checksum verified"; \
 	fi
 
 RUN set -eux; \
-	echo "Resolving sevenzipjbinding release via SourceForge best_release.json"; \
+	skip_flag="$(printf '%s' "${SKIP_SHA_CHECKS}" | tr '[:upper:]' '[:lower:]')"; \
 	info_json="/tmp/seven_best.json"; \
-	if curl -fsSL -H "Accept: application/json" "https://sourceforge.net/projects/sevenzipjbind/best_release.json" -o "$info_json"; then \
-		pf="linux"; \
-		filename="$(jq -r --arg p "$pf" '.platform_releases[$p].filename // .release.filename' "$info_json")"; \
-		saved_name="$(basename "${filename}")"; \
-		saved_path="/tmp/${saved_name}"; \
-		url="$(jq -r --arg p "$pf" '.platform_releases[$p].url // .release.url' "$info_json")"; \
-		expected_md5="$(jq -r --arg p "$pf" '.platform_releases[$p].md5sum // .release.md5sum // empty' "$info_json")"; \
-		filename="${saved_name}"; \
-	else \
-		echo "Failed to fetch best_release.json; falling back to a conservative default"; \
-		filename="sevenzipjbinding-16.02-2.01-Linux-amd64.zip"; \
-		url="https://sourceforge.net/projects/sevenzipjbind/files/7-Zip-JBinding/16.02-2.01/${filename}/download?use_mirror=master"; \
-		expected_md5=""; \
-	fi; \
-	echo "Downloading ${filename} from ${url}"; \
-		wget -O "${saved_path}" "${url}"; \
-	if [ -n "${expected_md5:-}" ]; then \
-		echo "Verifying ${filename} against md5 ${expected_md5}"; \
-			actual_md5="$(md5sum "${saved_path}" | awk '{print $1}' || true)"; \
-		if [ -z "$actual_md5" ]; then \
-			echo "Failed to calculate md5 of /tmp/${filename}"; exit 1; \
-		fi; \
-		if [ "$(echo "$actual_md5" | tr '[:upper:]' '[:lower:]')" != "$(echo "$expected_md5" | tr '[:upper:]' '[:lower:]')" ]; then \
-			echo "MD5 mismatch for ${filename}: expected ${expected_md5} got ${actual_md5}"; \
-			if [ "$FORCE_SHA_CHECK" = "true" ] || [ "$FORCE_SHA_CHECK" = "1" ]; then \
-				echo "FORCE_SHA_CHECK is set -> failing build"; \
-				exit 1; \
-			else \
-				echo "Warning: MD5 mismatch but FORCE_SHA_CHECK not set; continuing"; \
+	filename=""; \
+	url=""; \
+	expected_md5="${SEVENZIP_MD5}"; \
+	saved_path=""; \
+	if curl -fsSL -H "Accept: application/json" "${SEVENZIP_BEST_URL}" -o "$info_json"; then \
+		if command -v jq >/dev/null 2>&1; then \
+			platform="linux"; \
+			filename_raw="$(jq -r --arg p "$platform" '.platform_releases[$p].filename // .release.filename // empty' "$info_json")"; \
+			url="$(jq -r --arg p "$platform" '.platform_releases[$p].url // .release.url // empty' "$info_json")"; \
+			if [ -z "$expected_md5" ] || [ "$expected_md5" = "null" ]; then \
+				expected_md5="$(jq -r --arg p "$platform" '.platform_releases[$p].md5sum // .release.md5sum // empty' "$info_json")"; \
+			fi; \
+			if [ -n "$filename_raw" ] && [ "$filename_raw" != "null" ]; then \
+				filename="$(basename "$filename_raw")"; \
 			fi; \
 		else \
-			echo "MD5 verified"; \
+			echo "jq missing; skipping best_release parsing"; \
 		fi; \
 	else \
-		echo "No expected md5 provided; skipping md5 verification"; \
+		echo "Failed to fetch sevenzip best_release.json"; \
 	fi; \
-		unzip -q "${saved_path}" -d /tmp/ || (echo "unzip failed" && ls -la /tmp && false); \
-		rm -f "${saved_path}"; \
-	# Keep only /tmp/lib, /tmp/lib.tar.gz and /tmp/JDownloader.jar (remove everything else in /tmp)
-	find /tmp -maxdepth 1 -mindepth 1 ! -name lib ! -name lib.tar.gz ! -name JDownloader.jar -exec rm -rf {} + || true
+	if [ -z "$filename" ] || [ "$filename" = "null" ]; then \
+		filename="$(basename "${SEVENZIP_FALLBACK_URL}")"; \
+	fi; \
+	if [ -z "$url" ] || [ "$url" = "null" ]; then \
+		url="${SEVENZIP_FALLBACK_URL}"; \
+	fi; \
+	saved_path="/tmp/${filename}"; \
+	mkdir -p "$(dirname "$saved_path")"; \
+	echo "Downloading ${filename} from ${url}"; \
+	wget -O "$saved_path" "$url"; \
+	if [ "$skip_flag" != "true" ]; then \
+		if [ -z "$expected_md5" ] || [ "$expected_md5" = "null" ]; then \
+			echo "Checksum enforcement enabled but no MD5 available for sevenzip"; \
+			exit 1; \
+		fi; \
+		actual_md5="$(md5sum "$saved_path" | awk '{print $1}' || true)"; \
+		if [ -z "$actual_md5" ]; then \
+			echo "Failed to compute MD5 for ${filename}"; \
+			exit 1; \
+		fi; \
+		normal_md5="$(printf '%s' "$actual_md5" | tr '[:upper:]' '[:lower:]')"; \
+		expected_md5="$(printf '%s' "$expected_md5" | tr '[:upper:]' '[:lower:]')"; \
+		if [ "$normal_md5" != "$expected_md5" ]; then \
+			echo "MD5 mismatch for ${filename} (expected $expected_md5 got $normal_md5)"; \
+			exit 1; \
+		fi; \
+		echo "sevenzip MD5 verified"; \
+	else \
+		echo "SKIP_SHA_CHECKS=true -> not verifying sevenzip"; \
+	fi; \
+	workdir="/tmp/sevenzipjbinding"; \
+    rm -rf "$workdir"; \
+    mkdir -p "$workdir"; \
+    unzip -q "$saved_path" -d "$workdir" || (echo "unzip failed" && ls -R "$workdir" && false); \
+    rm -f "$saved_path"; \
+    libdir="$(find "$workdir" -type d -name lib | head -n1 || true)"; \
+    if [ -z "$libdir" ]; then \
+        echo "lib directory not found under $workdir"; \
+        ls -R "$workdir"; \
+        exit 1; \
+    fi; \
+    mv "$libdir" /tmp/lib; \
+    rm -rf "$workdir"; \
+    find /tmp -maxdepth 1 -mindepth 1 \
+        ! -name 'lib' \
+        ! -name 'JDownloader.jar' \
+        -exec rm -rf {} + || true
 
+	# Runtime JDK is downloaded at container startup (Temurin default) by `start-server.sh`.
 COPY /conf/ /etc/.fluxbox/
 RUN chmod -R 770 /opt/scripts/ && \
 	chown -R ${UID}:${GID} /mnt && \
