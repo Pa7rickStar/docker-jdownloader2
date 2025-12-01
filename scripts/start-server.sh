@@ -10,23 +10,44 @@ else
 	echo "---'runtime' folder found---"
 fi
 
-echo "---Checking if Runtime is installed---"
-if [ -z "$(find ${DATA_DIR}/runtime -name jre*)" ]; then
-    if [ "${RUNTIME_NAME}" == "basicjre" ]; then
-    	echo "---Downloading and installing Runtime (basicjre) via fetch-temurin.sh---"
-    	# Use helper script to discover/download/verify Temurin. You can override via JDK_URL/JDK_SHA256.
-    	/opt/scripts/fetch-temurin.sh || {
-    		echo "---Failed to fetch Temurin runtime---"; sleep infinity; }
-    else
-    	if [ ! -d ${DATA_DIR}/runtime/${RUNTIME_NAME} ]; then
-        	echo "---------------------------------------------------------------------------------------------"
-        	echo "---Runtime not found in folder 'runtime' please check again! Putting server in sleep mode!---"
-        	echo "---------------------------------------------------------------------------------------------"
-        	sleep infinity
-        fi
-    fi
+requested_runtime="${JAVA_RUNTIME_VERSION:-jdk-24.0.2+12}"
+requested_release="${requested_runtime#jdk-}"
+requested_release="${requested_release#jre-}"
+release_file="${DATA_DIR}/runtime/release"
+runtime_java="${DATA_DIR}/runtime/bin/java"
+install_runtime="false"
+
+echo "---Ensuring runtime ${requested_runtime} is installed---"
+if [ ! -x "${runtime_java}" ]; then
+	echo "---Runtime binary missing---"
+	install_runtime="true"
+elif [ ! -f "${release_file}" ]; then
+	echo "---Runtime release file missing---"
+	install_runtime="true"
 else
-	echo "---Runtime found---"
+	installed_runtime="$(grep -E '^JAVA_RUNTIME_VERSION=' "${release_file}" | head -n1 | sed -nE 's/.*="([^"]+)".*/\1/p' || true)"
+	if [ -z "${installed_runtime}" ]; then
+		echo "---Unable to read JAVA_RUNTIME_VERSION from release file---"
+		install_runtime="true"
+	elif [ "${installed_runtime}" != "${requested_release}" ]; then
+		echo "---Installed runtime (${installed_runtime}) differs from requested ${requested_release}---"
+		install_runtime="true"
+	else
+		echo "---Runtime ${installed_runtime} already installed---"
+	fi
+fi
+
+if [ "${install_runtime}" = "true" ]; then
+	echo "---Downloading runtime (${requested_runtime}) via fetch-temurin.sh---"
+	/opt/scripts/fetch-temurin.sh || {
+		echo "---Failed to fetch Temurin runtime---"; sleep infinity; }
+fi
+
+if [ ! -x "${runtime_java}" ]; then
+	echo "---------------------------------------------------------------------------------------------"
+	echo "---Runtime binary missing after installation attempt, putting server in sleep mode!---"
+	echo "---------------------------------------------------------------------------------------------"
+	sleep infinity
 fi
 
 echo "---Checking for 'jDownloader.jar'---"
@@ -45,40 +66,40 @@ else
 fi
 
 echo "---Preparing Server---"
-# Determine runtime directory name (prefer extracted jre* directory)
-rt_dir=$(find ${DATA_DIR}/runtime -maxdepth 1 -type d -name "jre*" | head -n1 || true)
-if [ -n "$rt_dir" ]; then
-	export RUNTIME_NAME="$(basename "$rt_dir")"
-else
-	# fallback: pick first directory under runtime
-	export RUNTIME_NAME="$(ls -d ${DATA_DIR}/runtime/* | head -n1 | xargs -n1 basename 2>/dev/null || echo "")"
-fi
 
 echo "---Checking libraries---"
 if [ ! -d ${DATA_DIR}/libs ]; then
 	mkdir ${DATA_DIR}/libs
 fi
-if [ ! -f ${DATA_DIR}/libs/sevenzipjbinding1509Linux.jar ]; then
-	cd ${DATA_DIR}/libs
-	if [ ! -f ${DATA_DIR}/libs/lib.tar.gz ]; then
-		cp /tmp/lib.tar.gz ${DATA_DIR}/libs/lib.tar.gz
-	fi
-    if [ -f ${DATA_DIR}/libs/lib.tar.gz ]; then
-    	tar -xf ${DATA_DIR}/libs/lib.tar.gz
-    	rm ${DATA_DIR}/libs/lib.tar.gz
+missing_libs=true
+if [ -f ${DATA_DIR}/libs/sevenzipjbinding1509Linux.jar ] || \
+	[ -f ${DATA_DIR}/libs/sevenzipjbinding1509.jar ] || \
+	[ -f ${DATA_DIR}/libs/sevenzipjbinding-Linux-amd64.jar ] || \
+	[ -f ${DATA_DIR}/libs/sevenzipjbinding.jar ] || \
+	[ -f ${DATA_DIR}/libs/sevenzipjbinding-AllLinux.jar ]; then
+	missing_libs=false
+fi
+
+if [ "${missing_libs}" = "true" ]; then
+	echo "---Sevenzip libraries not found; checking /tmp/lib for jar files---"
+	if [ -d /tmp/lib ]; then
+		found_jar=false
+		for jar_file in /tmp/lib/*.jar; do
+			if [ ! -e "${jar_file}" ]; then
+				break
+			fi
+			found_jar=true
+			echo "---Copying sevenzip library: ${jar_file} -> ${DATA_DIR}/libs/---"
+			cp "${jar_file}" "${DATA_DIR}/libs/" || echo "---Warning: failed to copy ${jar_file}---"
+		done
+		if [ "${found_jar}" = "false" ]; then
+			echo "---Warning: /tmp/lib exists but contains no .jar files; continuing without sevenzip libraries---"
+		fi
+	else
+		echo "---Warning: /tmp/lib not found; continuing without sevenzip libraries---"
 	fi
 else
-	echo "---Libraries found!---"
-fi
-if [ ! -f ${DATA_DIR}/libs/sevenzipjbinding1509.jar ]; then
-	cd ${DATA_DIR}/libs
-	if [ ! -f ${DATA_DIR}/libs/lib.tar.gz ]; then
-		cp /tmp/lib.tar.gz ${DATA_DIR}/libs/lib.tar.gz
-	fi
-    if [ -f ${DATA_DIR}/libs/lib.tar.gz ]; then
-    	tar -xf ${DATA_DIR}/libs/lib.tar.gz
-    	rm ${DATA_DIR}/libs/lib.tar.gz
-	fi
+	echo "---Sevenzip libraries already present in ${DATA_DIR}/libs---"
 fi
 
 echo "---Checking for old logfiles---"
@@ -156,4 +177,4 @@ sleep 2
 
 echo "---Starting jDownloader2---"
 cd ${DATA_DIR}
-eval ${DATA_DIR}/runtime/${RUNTIME_NAME}/bin/java ${EXTRA_JVM_PARAMS} -jar ${DATA_DIR}/JDownloader.jar
+eval ${runtime_java} ${EXTRA_JVM_PARAMS} -jar ${DATA_DIR}/JDownloader.jar
