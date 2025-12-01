@@ -10,7 +10,7 @@ else
 	echo "---'runtime' folder found---"
 fi
 
-requested_runtime="${JAVA_RUNTIME_VERSION:-jdk-24.0.2+12}"
+requested_runtime="${JAVA_RUNTIME_VERSION:?JAVA_RUNTIME_VERSION env var must be set}"
 requested_release="${requested_runtime#jdk-}"
 requested_release="${requested_release#jre-}"
 release_file="${DATA_DIR}/runtime/release"

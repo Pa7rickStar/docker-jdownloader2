@@ -4,11 +4,11 @@ set -euo pipefail
 # Helper: download/verify/extract a specific Temurin Linux x64 HotSpot runtime
 # Uses env vars: JAVA_RUNTIME_VERSION, SKIP_SHA_CHECKS, JDK_URL (optional override), JDK_SHA256 (optional checksum), GITHUB_TOKEN
 
-DATA_DIR=${DATA_DIR:-/jDownloader2}
-UID=${UID:-99}
-GID=${GID:-100}
-JAVA_RUNTIME_VERSION=${JAVA_RUNTIME_VERSION:-jdk-24.0.2+12}
-SKIP_SHA_CHECKS=${SKIP_SHA_CHECKS:-false}
+DATA_DIR="${DATA_DIR:?DATA_DIR env var must be set}"
+UID="${UID:?UID env var must be set}"
+GID="${GID:?GID env var must be set}"
+JAVA_RUNTIME_VERSION="${JAVA_RUNTIME_VERSION:?JAVA_RUNTIME_VERSION env var must be set}"
+SKIP_SHA_CHECKS="${SKIP_SHA_CHECKS:-false}"
 
 echo "---fetch-temurin: starting---"
 
