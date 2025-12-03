@@ -6,14 +6,11 @@ LABEL org.opencontainers.image.authors="admin@minenet.at"
 LABEL org.opencontainers.image.source="https://github.com/Pa7rickStar/docker-jdownloader2"
 
 RUN export TZ=Europe/Rome && \
-	apt-get update && \
+	apt-get update && apt-get upgrade -y && \
 	ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
 	echo $TZ > /etc/timezone && \
-	apt-get -y install --no-install-recommends fonts-takao netcat-traditional wget curl jq && \
+	apt-get -y install --no-install-recommends fonts-takao netcat-traditional wget curl jq nano xterm firefox-esr && \
 	apt-get -y install ffmpeg unzip && \
-	echo "ko_KR.UTF-8 UTF-8" >> /etc/locale.gen && \ 
-	echo "ja_JP.UTF-8 UTF-8" >> /etc/locale.gen && \
-	locale-gen && \
 	rm -rf /var/lib/apt/lists/* && \
 	sed -i '/    document.title =/c\    document.title = "jDownloader2 - noVNC";' /usr/share/novnc/app/ui.js && \
 	rm /usr/share/novnc/app/images/icons/*
@@ -43,11 +40,15 @@ ENV SEVENZIP_BEST_URL="https://sourceforge.net/projects/sevenzipjbind/best_relea
 ENV SEVENZIP_FALLBACK_URL="https://sourceforge.net/projects/sevenzipjbind/files/7-Zip-JBinding/16.02-2.01/sevenzipjbinding-16.02-2.01-Linux-amd64.zip/download?use_mirror=master"
 ENV SEVENZIP_MD5=""
 ENV GITHUB_TOKEN=""
+ENV FIREFOX_EXT_URL="https://extensions.jdownloader.org/firefox.xpi"
 
-RUN mkdir $DATA_DIR && \
+RUN mkdir -p $DATA_DIR/firefox-home && \
 	useradd -d $DATA_DIR -s /bin/bash $USER && \
 	chown -R $USER $DATA_DIR && \
 	ulimit -n 2048
+
+RUN mkdir -p /usr/lib/firefox-esr/distribution/extensions && \
+	wget -O /usr/lib/firefox-esr/distribution/extensions/jid1-OY8Xu5BsKZQa6A@jetpack.xpi "${FIREFOX_EXT_URL}"
 
 ADD /scripts/ /opt/scripts/
 COPY /icons/* /usr/share/novnc/app/images/icons/
@@ -176,12 +177,11 @@ RUN set -eux; \
     fi; \
     mv "$libdir" /tmp/lib; \
     rm -rf "$workdir"; \
-    find /tmp -maxdepth 1 -mindepth 1 \
-        ! -name 'lib' \
-        ! -name 'JDownloader.jar' \
-        -exec rm -rf {} + || true
+	find /tmp -maxdepth 1 -mindepth 1 \
+		! -name 'lib' \
+		! -name 'JDownloader.jar' \
+		-exec rm -rf {} + || true
 
-	# Runtime JDK is downloaded at container startup (Temurin default) by `start-server.sh`.
 COPY /conf/ /etc/.fluxbox/
 RUN chmod -R 770 /opt/scripts/ && \
 	chown -R ${UID}:${GID} /mnt && \

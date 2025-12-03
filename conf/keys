@@ -1,0 +1,10 @@
+# Show root menu on left-click on desktop
+OnDesktop Mouse1 :RootMenu
+
+# Workspace menu on right-click (optional)
+OnDesktop Mouse3 :WorkspaceMenu
+
+# Basic Alt+Tab
+Mod1 Tab :NextWindow
+Mod1 Shift Tab :PrevWindow
+EOF
