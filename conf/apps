@@ -1,5 +1,1 @@
-[app] (Title=.*)
-  [Layer]	{2}
-  [Maximized]	{yes}
-  ! [Deco]	{none}
-[end]
+! No per-application rules; use Fluxbox defaults for all windows.

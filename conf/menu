@@ -2,5 +2,13 @@
    [exec] (Terminal) {xterm -bg "#303030" -fg white}
    [exec] (JDownloader2) {/jDownloader2/runtime/bin/java -jar /jDownloader2/JDownloader.jar}
    [exec] (Firefox) {env HOME=/jDownloader2/firefox-home firefox-esr}
-   [restart] (Restart Fluxbox)
+   [submenu] (Fluxbox)
+      [config] (Configuration)
+      [submenu] (Styles)
+         [stylesdir] (/usr/share/fluxbox/styles)
+      [end]
+      [reconfig] (Reload Config)
+      [restart] (Restart Fluxbox)
+      [exit] (Exit Fluxbox)
+   [end]
 [end]
