@@ -135,6 +135,13 @@ if [ ! -d ${DATA_DIR}/cfg ]; then
 	mkdir ${DATA_DIR}/cfg
 fi
 
+if [ ! -f "${DATA_DIR}/cfg/org.jdownloader.captcha.v2.solver.browser.BrowserCaptchaSolverConfig.browsercommandline.json" ]; then
+    if [ -f "/opt/jdownloader-defaults/org.jdownloader.captcha.v2.solver.browser.BrowserCaptchaSolverConfig.browsercommandline.json" ]; then
+        cp "/opt/jdownloader-defaults/org.jdownloader.captcha.v2.solver.browser.BrowserCaptchaSolverConfig.browsercommandline.json" \
+           "${DATA_DIR}/cfg/org.jdownloader.captcha.v2.solver.browser.BrowserCaptchaSolverConfig.browsercommandline.json"
+    fi
+fi
+
 if [ ! -f "${DATA_DIR}/cfg/org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json" ]; then
     cd "${DATA_DIR}/cfg"
     touch "org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json"

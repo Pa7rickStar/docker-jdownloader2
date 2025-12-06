@@ -183,6 +183,7 @@ RUN set -eux; \
 		-exec rm -rf {} + || true
 
 COPY /conf/ /etc/.fluxbox/
+COPY /config/ /opt/jdownloader-defaults/
 RUN chmod -R 770 /opt/scripts/ && \
 	chown -R ${UID}:${GID} /mnt && \
 	chmod -R 770 /mnt
