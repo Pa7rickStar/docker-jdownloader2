@@ -59,6 +59,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute lowercase image name
+        run: echo "IMAGE_NAME=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: Build and push ${{ matrix.name }} image
         uses: docker/build-push-action@v4
         with:
@@ -70,14 +73,14 @@ jobs:
           build-args: |
             FLAVOR=${{ matrix.image_tag }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.image_tag }}
-            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.image_tag }}-${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.image_tag }}-${{ github.ref_name }}
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ matrix.image_tag }}
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ matrix.image_tag }}-${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ matrix.image_tag }}-${{ github.ref_name }}
 
       - name: Tag legacy as latest on GHCR
         if: matrix.name == 'legacy'
         run: |
-          ref="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}"
+          ref="ghcr.io/${IMAGE_NAME}"
           docker buildx imagetools create \
             --tag "${ref}:latest" \
             "${ref}:legacy"
