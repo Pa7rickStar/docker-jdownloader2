@@ -50,16 +50,24 @@ backup_fluxbox_config
 
 case "${flavor}" in
   legacy)
-	if [ -f "${BROWSER_CMDLINE_CFG}" ]; then
-		backup_path "${BROWSER_CMDLINE_CFG}" "${BROWSER_CMDLINE_BACKUP_REL}" "move"
-		echo "---------------------------------------------------------------------------------------------"
-		echo "---WARNING: ${flavor} flavor does not support browser captcha solver, removing invalid config!---"
-		echo "---A backup of the removed config was stored at: ${BROWSER_CMDLINE_BACKUP}---"
-		echo "---------------------------------------------------------------------------------------------"
-	fi
-	echo "---start-server: using legacy implementation (IMAGE_FLAVOR=legacy)---"
-	exec /opt/scripts/start-server-legacy.sh
-	;;
+    # Ensure the legacy script only sees its own jre* runtime. Remove any JDK runtimes created by other flavors.
+    if [ -d "${DATA_DIR}/runtime" ]; then
+      if compgen -G "${DATA_DIR}/runtime/jdk*" > /dev/null; then
+        rm -rf "${DATA_DIR}/runtime"/jdk*
+      fi
+    fi
+
+    if [ -f "${BROWSER_CMDLINE_CFG}" ]; then
+      backup_path "${BROWSER_CMDLINE_CFG}" "${BROWSER_CMDLINE_BACKUP_REL}" "move"
+      echo "---------------------------------------------------------------------------------------------"
+      echo "Browser-based captcha solver config is not supported in 'legacy' flavor."
+      echo "The config has been removed from active use and backed up to:"
+      echo "  ${BROWSER_CMDLINE_BACKUP}"
+      echo "---------------------------------------------------------------------------------------------"
+    fi
+
+    exec /opt/scripts/start-server-legacy.sh
+    ;;
   firefox)
 	echo "---start-server: using firefox implementation (IMAGE_FLAVOR=firefox)---"
 	# Ensure default browser captcha solver config is in place

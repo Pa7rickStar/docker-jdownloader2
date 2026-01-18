@@ -161,6 +161,7 @@ When switching flavors the container adjusts a few configuration files inside th
   - `firefox` flavor: ensures this file exists so browser-based captcha solving works.
   - all non-`firefox` flavors: back up and remove this file because the browser solver is not supported.
 - Fluxbox configuration under `/etc/.fluxbox` is flavor-specific but not preserved automatically; on **each start** the current state is backed up.
+- When switching to the `legacy` flavor, previous runtime files are removed to avoid conflicts. They are not backed up automatically.
 
 Backups are not restored automatically. Backups are written into the mounted data path so they can be restored manually if needed:
 
