@@ -25,6 +25,7 @@ ARG FIREFOX_EXT_URL="https://extensions.jdownloader.org/firefox.xpi"
 
 # Runtime env (internal, normally not exposed)
 ENV DATA_DIR=/jDownloader2
+ENV DOWNLOAD_DIR=/mnt/user/data/jdownloader
 ENV NOVNC_PORT=8080
 ENV RFB_PORT=5900
 ENV TURBOVNC_PARAMS="-securitytypes none"
@@ -209,19 +210,17 @@ RUN set -eux; \
 		! -name 'JDownloader.jar' \
 		-exec rm -rf {} + || true
 
-# Copy fluxbox configuration based on flavor
+# Copy fluxbox configuration based on flavor and provide JDownloader default configs
 COPY conf/ /tmp/conf_default/
 COPY conf_firefox/ /tmp/conf_firefox/
-COPY config/ /tmp/jd_config/
+COPY config/ /opt/jdownloader-defaults/
 RUN set -eux; \
-    if [ "${IMAGE_FLAVOR}" = "firefox" ]; then \
-        rm -rf /etc/.fluxbox && mv /tmp/conf_firefox /etc/.fluxbox; \
-        mkdir -p /opt/jdownloader-defaults; \
-        cp -r /tmp/jd_config/. /opt/jdownloader-defaults/; \
-    else \
-        rm -rf /etc/.fluxbox && mv /tmp/conf_default /etc/.fluxbox; \
-    fi; \
-    rm -rf /tmp/conf_default /tmp/conf_firefox /tmp/jd_config
+	if [ "${IMAGE_FLAVOR}" = "firefox" ]; then \
+		rm -rf /etc/.fluxbox && mv /tmp/conf_firefox /etc/.fluxbox; \
+	else \
+		rm -rf /etc/.fluxbox && mv /tmp/conf_default /etc/.fluxbox; \
+	fi; \
+	rm -rf /tmp/conf_default /tmp/conf_firefox
 
 # Final permissions
 RUN chmod -R 770 /opt/scripts/ && \

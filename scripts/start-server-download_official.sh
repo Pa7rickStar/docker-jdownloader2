@@ -134,6 +134,28 @@ if [ -f ${DATA_DIR}/.vnc/passwd ]; then
 	chmod 600 ${DATA_DIR}/.vnc/passwd
 fi
 
+echo "---Setting up JDownloader config---"
+if [ ! -d ${DATA_DIR}/cfg ]; then
+	mkdir ${DATA_DIR}/cfg
+fi
+
+defaults=/opt/jdownloader-defaults
+if [ -d "$defaults" ]; then
+  for f in "$defaults"/*; do
+    [ -f "$f" ] || continue
+    base="$(basename "$f")"
+    [ -e "${DATA_DIR}/cfg/$base" ] || cp -a "$f" "${DATA_DIR}/cfg/$base"
+  done
+fi
+
+if [ ! -f "${DATA_DIR}/cfg/org.jdownloader.settings.GeneralSettings.json" ]; then
+    cd "${DATA_DIR}/cfg"
+    touch "org.jdownloader.settings.GeneralSettings.json"
+	echo '{
+  "defaultdownloadfolder" : "${DOWNLOAD_DIR}"
+}' >> "${DATA_DIR}/cfg/org.jdownloader.settings.GeneralSettings.json"
+fi
+
 echo "---Resolution check---"
 if [ -z "${CUSTOM_RES_W}" ]; then
 	CUSTOM_RES_W=1024
@@ -151,38 +173,8 @@ if [ "${CUSTOM_RES_H}" -le 768 ]; then
     CUSTOM_RES_H=768
 fi
 
-if [ ! -d ${DATA_DIR}/cfg ]; then
-	mkdir ${DATA_DIR}/cfg
-fi
-
-if [ ! -f "${DATA_DIR}/cfg/org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json" ]; then
-    cd "${DATA_DIR}/cfg"
-    touch "org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json"
-	echo '{
-  "extendedState" : "NORMAL",
-  "width" : '${CUSTOM_RES_W}',
-  "height" : '${CUSTOM_RES_H}',
-  "x" : 0,
-  "visible" : true,
-  "y" : 0,
-  "silentShutdown" : false,
-  "screenID" : ":0.0",
-  "locationSet" : true,
-  "focus" : true,
-  "active" : true
-}' >> "${DATA_DIR}/cfg/org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json"
-fi
-
 sed -i '/"width"/c\  "width" : '${CUSTOM_RES_W}',' "${DATA_DIR}/cfg/org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json"
 sed -i '/"height"/c\  "height" : '${CUSTOM_RES_H}',' "${DATA_DIR}/cfg/org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json"
-if [ ! -f "${DATA_DIR}/cfg/org.jdownloader.settings.GeneralSettings.json" ]; then
-    cd "${DATA_DIR}/cfg"
-    touch "org.jdownloader.settings.GeneralSettings.json"
-	echo '{
-  "defaultdownloadfolder" : "/mnt/jDownloader"
-}' >> "${DATA_DIR}/cfg/org.jdownloader.settings.GeneralSettings.json"
-fi
-sed -i '/Downloads"/c\  "defaultdownloadfolder" : "\/mnt\/jDownloader",' "${DATA_DIR}/cfg/org.jdownloader.settings.GeneralSettings.json"
 echo "---Window resolution: ${CUSTOM_RES_W}x${CUSTOM_RES_H}---"
 
 echo "---Starting TurboVNC server---"
