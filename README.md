@@ -61,6 +61,9 @@ This repository provides multiple Docker images (flavors) built from different D
 | DOWNLOAD_DIR | Default download folder path that jDownloader2 will use on first start for the official-download flavors. Point this to a path that is bind-mounted into the container. | /mnt/user/data/jdownloader | download_official, firefox |
 | GITHUB_TOKEN | Personal access token to avoid GitHub API rate limiting when resolving Temurin releases. | empty string | download_official, firefox |
 
+> [!NOTE]
+> For the `legacy` flavor, the download directory in the container is hardcoded to `/mnt/jDownloader` and cannot be changed via env vars.
+
 ## Run example
 
 ```bash

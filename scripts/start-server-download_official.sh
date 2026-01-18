@@ -149,11 +149,12 @@ if [ -d "$defaults" ]; then
 fi
 
 if [ ! -f "${DATA_DIR}/cfg/org.jdownloader.settings.GeneralSettings.json" ]; then
-    cd "${DATA_DIR}/cfg"
-    touch "org.jdownloader.settings.GeneralSettings.json"
-	echo '{
+    : "${DOWNLOAD_DIR}"
+    cat > "${DATA_DIR}/cfg/org.jdownloader.settings.GeneralSettings.json" <<EOF
+{
   "defaultdownloadfolder" : "${DOWNLOAD_DIR}"
-}' >> "${DATA_DIR}/cfg/org.jdownloader.settings.GeneralSettings.json"
+}
+EOF
 fi
 
 echo "---Resolution check---"
