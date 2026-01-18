@@ -28,8 +28,8 @@ This repository provides multiple Docker images (flavors) built from different D
 
 | Name | Description | Default | Flavor |
 | --- | --- | --- | --- |
-| CUSTOM_RES_W | Minimum of 1024 pixels (leave blank for 1024 pixels) | 1024 | all |
-| CUSTOM_RES_H | Minimum of 768 pixels (leave blank for 768 pixels) | 768 | all |
+| CUSTOM_RES_W | Width in pixels for the VNC window; values below 1024 are clamped to 1024. | 1280 | all |
+| CUSTOM_RES_H | Height in pixels for the VNC window; values below 768 are clamped to 768. | 1024 | all |
 | UMASK | Permissions for newly created files and folders | 000 | all |
 | UID | User identifier used inside the container | 99 | all |
 | GID | Group identifier used inside the container | 100 | all |
@@ -48,13 +48,17 @@ This repository provides multiple Docker images (flavors) built from different D
 | SEVENZIP_BEST_URL | SourceForge `best_release.json` endpoint to locate the latest sevenzipjbinding build. | https://sourceforge.net/projects/sevenzipjbind/best_release.json | download_official, firefox |
 | SEVENZIP_FALLBACK_URL | Static SourceForge URL used when the best-release lookup fails. | https://sourceforge.net/projects/sevenzipjbind/files/7-Zip-JBinding/16.02-2.01/sevenzipjbinding-16.02-2.01-Linux-amd64.zip/download?use_mirror=master | download_official, firefox |
 | SEVENZIP_MD5 | Manual MD5 override for the sevenzipjbinding archive. | empty (taken from best_release.json when available) | download_official, firefox |
+| FIREFOX_EXT_URL | URL of the Firefox extension XPI used for the browser captcha solver integration. | https://extensions.jdownloader.org/firefox.xpi | firefox |
 
 #### Runtime env vars (mainly for the `download_official` / `firefox` flavors)
 
 | Name | Description | Default | Flavor |
 | --- | --- | --- | --- |
+| CUSTOM_DEPTH | Color depth (bits per pixel) for the VNC session. Normally left at 16. | 16 | all |
+| CONNECTED_CONTAINERS | Optional `host:port` of a VPN or proxy container to watch; if set, this container will restart itself when the connection is lost. | empty string | all |
 | JDK_URL | Direct override for the Temurin archive URL (skips GitHub tag lookup). | unset | download_official, firefox |
 | JDK_SHA256 | Manual SHA256 override for the JRE archive when checksum checks are enabled. | unset | download_official, firefox |
+| DOWNLOAD_DIR | Default download folder path that jDownloader2 will use on first start for the official-download flavors. Point this to a path that is bind-mounted into the container. | /mnt/user/data/jdownloader | download_official, firefox |
 | GITHUB_TOKEN | Personal access token to avoid GitHub API rate limiting when resolving Temurin releases. | empty string | download_official, firefox |
 
 ## Run example
@@ -157,16 +161,13 @@ Flavours can be changed by changing the image tag in the docker run command, com
 
 When switching flavors the container adjusts a few configuration files inside the data volume (`/jDownloader2`):
 
-- JDownloader browser captcha solver config (`cfg/org.jdownloader.captcha.v2.solver.browser.BrowserCaptchaSolverConfig.browsercommandline.json`):
-  - `firefox` flavor: ensures this file exists so browser-based captcha solving works.
-  - all non-`firefox` flavors: back up and remove this file because the browser solver is not supported.
-- Fluxbox configuration under `/etc/.fluxbox` is flavor-specific but not preserved automatically; on **each start** the current state is backed up.
-- When switching to the `legacy` flavor, previous runtime files are removed to avoid conflicts. They are not backed up automatically.
+- Fluxbox configuration under `/etc/.fluxbox` is flavor-specific; on **each start** a snapshot of the current state is backed up.
+- When starting the `legacy` flavor, any non-default runtime directories under `/jDownloader2/runtime` are moved to `/jDownloader2/backups/runtime/` to avoid conflicts with the legacy Java runtime.
 
-Backups are not restored automatically. Backups are written into the mounted data path so they can be restored manually if needed:
+Backups are not restored automatically. They are written into the mounted data path so they can be restored manually if needed:
 
-- `/jDownloader2/backups/jdownloader2/cfg/org.jdownloader.captcha.v2.solver.browser.BrowserCaptchaSolverConfig.browsercommandline.json`
 - `/jDownloader2/backups/etc/.fluxbox/`
+- `/jDownloader2/backups/runtime/`
 
 > [!NOTE]
 > When bind-mounting `/etc/.fluxbox` from the host, the host directory controls Fluxbox for all flavors and the per-flavor defaults from the image (including the extended Firefox menu) will not be applied automatically.

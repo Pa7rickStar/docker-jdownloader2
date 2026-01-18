@@ -14,6 +14,9 @@ jobs:
       contents: read
       packages: write
 
+    env:
+      IMAGE_NAME: null
+
     strategy:
       fail-fast: false
       matrix:

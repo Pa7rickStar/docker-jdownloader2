@@ -35,9 +35,7 @@ backup_path() {
 # Snapshot Fluxbox config (if present)
 [ -d /etc/.fluxbox ] && backup_path /etc/.fluxbox "etc/.fluxbox" copy
 
-
 echo "---start-server: using ${flavor} implementation (IMAGE_FLAVOR=${flavor})---"
-
 case "$flavor" in
   firefox|download_official)
     exec /opt/scripts/start-server-download_official.sh
