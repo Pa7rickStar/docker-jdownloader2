@@ -1,158 +1,56 @@
 #!/bin/bash
-export DISPLAY=:99
-export XAUTHORITY=${DATA_DIR}/.Xauthority
 
-echo "---Checking for 'runtime' folder---"
-if [ ! -d ${DATA_DIR}/runtime ]; then
-	echo "---'runtime' folder not found, creating...---"
-	mkdir ${DATA_DIR}/runtime
-else
-	echo "---'runtime' folder found---"
-fi
+# Dispatch to flavor-specific start-server implementations based on IMAGE_FLAVOR.
+#
+# Supported values:
+#   - download_official (default): Temurin-based implementation
+#   - firefox: same as download_official, Firefox/Fluxbox focused
+#   - legacy: legacy implementation using ich777/runtimes basicjre tarball
 
-echo "---Checking if Runtime is installed---"
-if [ -z "$(find ${DATA_DIR}/runtime -name jre*)" ]; then
-    if [ "${RUNTIME_NAME}" == "basicjre" ]; then
-    	echo "---Downloading and installing Runtime---"
-		cd ${DATA_DIR}/runtime
-		if wget -q -nc --show-progress --progress=bar:force:noscroll https://github.com/ich777/runtimes/raw/master/jre/basicjre.tar.gz ; then
-			echo "---Successfully downloaded Runtime!---"
-		else
-			echo "---Something went wrong, can't download Runtime, putting server in sleep mode---"
-			sleep infinity
-		fi
-        tar --directory ${DATA_DIR}/runtime -xvzf ${DATA_DIR}/runtime/basicjre.tar.gz
-        rm -R ${DATA_DIR}/runtime/basicjre.tar.gz
+set -euo pipefail
+
+flavor="${IMAGE_FLAVOR:-legacy}"
+DATA_DIR="${DATA_DIR:-/jDownloader2}"
+BACKUP_ROOT="${DATA_DIR}/backups"
+
+backup_path() {
+  local src="$1" rel="$2" mode="${3:-copy}"
+  [ -e "$src" ] || return 0
+
+  local dest="${BACKUP_ROOT}/${rel}"
+  mkdir -p "$(dirname "$dest")"
+
+  if [ "$mode" = move ]; then
+    mv "$src" "$dest"
+  else
+    if [ -d "$src" ]; then
+      mkdir -p "$dest"
+      cp -a "$src"/. "$dest"/
     else
-    	if [ ! -d ${DATA_DIR}/runtime/${RUNTIME_NAME} ]; then
-        	echo "---------------------------------------------------------------------------------------------"
-        	echo "---Runtime not found in folder 'runtime' please check again! Putting server in sleep mode!---"
-        	echo "---------------------------------------------------------------------------------------------"
-        	sleep infinity
-        fi
+      cp -a "$src" "$dest"
     fi
-else
-	echo "---Runtime found---"
-fi
+  fi
+}
 
-echo "---Checking for 'jDownloader.jar'---"
-if [ ! -f ${DATA_DIR}/JDownloader.jar ]; then
-	echo "---'jDownloader.jar' not found, copying...---"
-	cd ${DATA_DIR}
-	cp /tmp/JDownloader.jar ${DATA_DIR}/JDownloader.jar
-	if [ ! -f ${DATA_DIR}/JDownloader.jar ]; then
-		echo "--------------------------------------------------------------------------------------"
-		echo "---Something went wrong can't copy 'jDownloader.jar', putting server in sleep mode!---"
-		echo "--------------------------------------------------------------------------------------"
-		sleep infinity
-	fi
-else
-	echo "---'jDownloader.jar' folder found---"
-fi
+# Snapshot Fluxbox config (if present)
+[ -d /etc/.fluxbox ] && backup_path /etc/.fluxbox "etc/.fluxbox" copy
 
-echo "---Preparing Server---"
-export RUNTIME_NAME="$(ls -d ${DATA_DIR}/runtime/* | cut -d '/' -f4)"
-
-echo "---Checking libraries---"
-if [ ! -d ${DATA_DIR}/libs ]; then
-	mkdir ${DATA_DIR}/libs
-fi
-if [ ! -f ${DATA_DIR}/libs/sevenzipjbinding1509Linux.jar ]; then
-	cd ${DATA_DIR}/libs
-	if [ ! -f ${DATA_DIR}/libs/lib.tar.gz ]; then
-		cp /tmp/lib.tar.gz ${DATA_DIR}/libs/lib.tar.gz
-	fi
-    if [ -f ${DATA_DIR}/libs/lib.tar.gz ]; then
-    	tar -xf ${DATA_DIR}/libs/lib.tar.gz
-    	rm ${DATA_DIR}/libs/lib.tar.gz
-	fi
-else
-	echo "---Libraries found!---"
-fi
-if [ ! -f ${DATA_DIR}/libs/sevenzipjbinding1509.jar ]; then
-	cd ${DATA_DIR}/libs
-	if [ ! -f ${DATA_DIR}/libs/lib.tar.gz ]; then
-		cp /tmp/lib.tar.gz ${DATA_DIR}/libs/lib.tar.gz
-	fi
-    if [ -f ${DATA_DIR}/libs/lib.tar.gz ]; then
-    	tar -xf ${DATA_DIR}/libs/lib.tar.gz
-    	rm ${DATA_DIR}/libs/lib.tar.gz
-	fi
-fi
-
-echo "---Checking for old logfiles---"
-find $DATA_DIR -name "XvfbLog.*" -exec rm -f {} \;
-find $DATA_DIR -name "x11vncLog.*" -exec rm -f {} \;
-echo "---Checking for old display lock files---"
-rm -rf /tmp/.X99*
-rm -rf /tmp/.X11*
-rm -rf ${DATA_DIR}/.vnc/*.log ${DATA_DIR}/.vnc/*.pid
-chmod -R ${DATA_PERM} ${DATA_DIR}
-if [ -f ${DATA_DIR}/.vnc/passwd ]; then
-	chmod 600 ${DATA_DIR}/.vnc/passwd
-fi
-
-echo "---Resolution check---"
-if [ -z "${CUSTOM_RES_W} ]; then
-	CUSTOM_RES_W=1024
-fi
-if [ -z "${CUSTOM_RES_H} ]; then
-	CUSTOM_RES_H=768
-fi
-
-if [ "${CUSTOM_RES_W}" -le 1024 ]; then
-	echo "---Width to low must be a minimal of 1024 pixels, correcting to 1024...---"
-    CUSTOM_RES_W=1024
-fi
-if [ "${CUSTOM_RES_H}" -le 768 ]; then
-	echo "---Height to low must be a minimal of 768 pixels, correcting to 768...---"
-    CUSTOM_RES_H=768
-fi
-
-if [ ! -d ${DATA_DIR}/cfg ]; then
-	mkdir ${DATA_DIR}/cfg
-fi
-
-if [ ! -f "${DATA_DIR}/cfg/org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json" ]; then
-    cd "${DATA_DIR}/cfg"
-    touch "org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json"
-	echo '{
-  "extendedState" : "NORMAL",
-  "width" : '${CUSTOM_RES_W}',
-  "height" : '${CUSTOM_RES_H}',
-  "x" : 0,
-  "visible" : true,
-  "y" : 0,
-  "silentShutdown" : false,
-  "screenID" : ":0.0",
-  "locationSet" : true,
-  "focus" : true,
-  "active" : true
-}' >> "${DATA_DIR}/cfg/org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json"
-fi
-
-sed -i '/"width"/c\  "width" : '${CUSTOM_RES_W}',' "${DATA_DIR}/cfg/org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json"
-sed -i '/"height"/c\  "height" : '${CUSTOM_RES_H}',' "${DATA_DIR}/cfg/org.jdownloader.settings.GraphicalUserInterfaceSettings.lastframestatus.json"
-if [ ! -f "${DATA_DIR}/cfg/org.jdownloader.settings.GeneralSettings.json" ]; then
-    cd "${DATA_DIR}/cfg"
-    touch "org.jdownloader.settings.GeneralSettings.json"
-	echo '{
-  "defaultdownloadfolder" : "/mnt/jDownloader"
-}' >> "${DATA_DIR}/cfg/org.jdownloader.settings.GeneralSettings.json"
-fi
-sed -i '/Downloads"/c\  "defaultdownloadfolder" : "\/mnt\/jDownloader",' "${DATA_DIR}/cfg/org.jdownloader.settings.GeneralSettings.json"
-echo "---Window resolution: ${CUSTOM_RES_W}x${CUSTOM_RES_H}---"
-
-echo "---Starting TurboVNC server---"
-vncserver -geometry ${CUSTOM_RES_W}x${CUSTOM_RES_H} -depth ${CUSTOM_DEPTH} :99 -rfbport ${RFB_PORT} -noxstartup -noserverkeymap ${TURBOVNC_PARAMS} 2>/dev/null
-sleep 2
-echo "---Starting Fluxbox---"
-screen -d -m env HOME=/etc /usr/bin/fluxbox
-sleep 2
-echo "---Starting noVNC server---"
-websockify -D --web=/usr/share/novnc/ --cert=/etc/ssl/novnc.pem ${NOVNC_PORT} localhost:${RFB_PORT}
-sleep 2
-
-echo "---Starting jDownloader2---"
-cd ${DATA_DIR}
-eval ${DATA_DIR}/runtime/${RUNTIME_NAME}/bin/java ${EXTRA_JVM_PARAMS} -jar ${DATA_DIR}/JDownloader.jar
+echo "---start-server: using ${flavor} implementation (IMAGE_FLAVOR=${flavor})---"
+case "$flavor" in
+  firefox|download_official)
+    exec /opt/scripts/start-server-download_official.sh
+    ;;
+  legacy|*)
+    rt="${DATA_DIR}/runtime"
+    if [ -d "$rt" ]; then
+      for d in "$rt"/*; do
+        [ -d "$d" ] || continue
+        case "$(basename "$d")" in
+          jre*) : ;;
+          *) backup_path "$d" "runtime/$(basename "$d")" move ;;
+        esac
+      done
+    fi
+    exec /opt/scripts/start-server-legacy.sh
+    ;;
+esac

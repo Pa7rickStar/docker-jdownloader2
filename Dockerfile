@@ -1,5 +1,14 @@
 FROM ich777/novnc-baseimage
 
+# Legacy flavor image
+#
+# Built and published as:
+#   - ghcr.io/<owner>/docker-jdownloader2:legacy
+#   - ghcr.io/<owner>/docker-jdownloader2:latest
+#
+# Uses the legacy runtime layout and start logic via
+#   IMAGE_FLAVOR=legacy -> scripts/start-server.sh -> start-server-legacy.sh
+
 LABEL org.opencontainers.image.authors="admin@minenet.at"
 LABEL org.opencontainers.image.source="https://github.com/ich777/docker-jdownloader2"
 

@@ -1,0 +1,89 @@
+name: Build and publish Docker image
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      IMAGE_NAME: null
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 1) Legacy implementation using ich777 tarball -> :legacy and :latest
+          - name: legacy
+            image_tag: legacy
+            build_context: .
+            dockerfile: ./Dockerfile
+
+          # 2) Download resources from official sources (Temurin + official JD & sevenzip) -> :download_official
+          - name: download_official
+            image_tag: download_official
+            build_context: .
+            dockerfile: ./Dockerfile.download_official
+
+          # 3) Official download + Firefox/Fluxbox desktop flavor -> :firefox
+          - name: firefox
+            image_tag: firefox
+            build_context: .
+            dockerfile: ./Dockerfile.download_official
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Inspect base images' manifests
+        run: |
+          # Print available platforms for upstream base images to the workflow log
+          docker buildx imagetools inspect ich777/novnc-baseimage || docker manifest inspect ich777/novnc-baseimage || true
+          docker buildx imagetools inspect ich777/debian-baseimage || docker manifest inspect ich777/debian-baseimage || true
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute lowercase image name
+        run: echo "IMAGE_NAME=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Build and push ${{ matrix.name }} image
+        uses: docker/build-push-action@v4
+        with:
+          context: ${{ matrix.build_context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          # ich777's novnc-baseimage pulls an amd64 TurboVNC .deb — restrict to amd64
+          platforms: linux/amd64
+          build-args: |
+            FLAVOR=${{ matrix.image_tag }}
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ matrix.image_tag }}
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ matrix.image_tag }}-${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}:${{ matrix.image_tag }}-${{ github.ref_name }}
+
+      - name: Tag legacy as latest on GHCR
+        if: matrix.name == 'legacy'
+        run: |
+          ref="ghcr.io/${IMAGE_NAME}"
+          docker buildx imagetools create \
+            --tag "${ref}:latest" \
+            "${ref}:legacy"

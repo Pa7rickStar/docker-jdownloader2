@@ -1,0 +1,26 @@
+# Root menu on left-click on desktop (convenience)
+OnDesktop Mouse1 :RootMenu
+
+# Classic root menu on right-click on desktop
+OnDesktop Mouse3 :RootMenu
+
+# Basic Alt+Tab window switching
+Mod1 Tab :NextWindow
+Mod1 Shift Tab :PrevWindow
+
+# Close and maximize via keyboard
+Mod1 F4 :Close
+Mod1 F10 :Maximize
+
+# Move window by dragging titlebar or Alt-drag anywhere
+OnTitlebar Move1 :StartMoving
+OnWindow Mod1 Mouse1 :StartMoving
+
+# Resize using window grips and borders
+OnLeftGrip Move1 :StartResizing bottomleft
+OnRightGrip Move1 :StartResizing bottomright
+OnWindowBorder Move1 :StartMoving
+
+# Titlebar actions: right-click menu and double-click maximize
+OnTitlebar Mouse3 :WindowMenu
+OnTitlebar Double Mouse1 :Maximize
