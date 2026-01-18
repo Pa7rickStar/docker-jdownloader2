@@ -12,6 +12,29 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 1) Legacy implementation using ich777 tarball -> :legacy and :latest
+          - name: legacy
+            image_tag: legacy
+            build_context: .
+            dockerfile: ./Dockerfile
+
+          # 2) Download resources from official sources (Temurin + official JD & sevenzip) -> :download_official
+          - name: download_official
+            image_tag: download_official
+            build_context: .
+            dockerfile: ./Dockerfile.download_official
+
+          # 3) Official download + Firefox/Fluxbox desktop flavor -> :firefox
+          - name: firefox
+            image_tag: firefox
+            build_context: .
+            dockerfile: ./Dockerfile.download_official
 
     steps:
       - name: Checkout
@@ -29,20 +52,32 @@ jobs:
           docker buildx imagetools inspect ich777/novnc-baseimage || docker manifest inspect ich777/novnc-baseimage || true
           docker buildx imagetools inspect ich777/debian-baseimage || docker manifest inspect ich777/debian-baseimage || true
 
-      - name: Log in to Docker Hub
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push image
+      - name: Build and push ${{ matrix.name }} image
         uses: docker/build-push-action@v4
         with:
-          context: .
+          context: ${{ matrix.build_context }}
+          file: ${{ matrix.dockerfile }}
           push: true
           # ich777's novnc-baseimage pulls an amd64 TurboVNC .deb — restrict to amd64
           platforms: linux/amd64
+          build-args: |
+            FLAVOR=${{ matrix.image_tag }}
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.image_tag }}
+            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.image_tag }}-${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ matrix.image_tag }}-${{ github.ref_name }}
+
+      - name: Tag legacy as latest on GHCR
+        if: matrix.name == 'legacy'
+        run: |
+          ref="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}"
+          docker buildx imagetools create \
+            --tag "${ref}:latest" \
+            "${ref}:legacy"

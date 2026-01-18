@@ -99,7 +99,7 @@ fi
 echo "Extracting runtime into ${runtime_dir}"
 rm -rf "$runtime_dir"
 mkdir -p "$runtime_dir"
-tar -xzf "$bin_tar" -C "$runtime_dir" --strip-components=1
+tar -xzf "$bin_tar" -C "$runtime_dir"
 chown -R "${UID}:${GID}" "$runtime_dir" || true
 
 echo "---fetch-temurin: finished---"
